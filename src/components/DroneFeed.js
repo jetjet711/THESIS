@@ -26,10 +26,14 @@ const DroneFeed = ({ setTotalCorn, setInfestedCorn, setPercentageInfested }) => 
     };
 
     const captureFrame = () => {
+      // Resize the canvas to match the video dimensions
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
+
+      // Draw the current video frame onto the canvas
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      // Convert the canvas content to a blob
       canvas.toBlob((blob) => {
         // Send the frame to your backend for detection
         const formData = new FormData();
@@ -42,20 +46,41 @@ const DroneFeed = ({ setTotalCorn, setInfestedCorn, setPercentageInfested }) => 
           .then((response) => response.json())
           .then((data) => {
             console.log('Detection results:', data);
+
+            // Update detection summary
             setTotalCorn(data.total_corn || 0);
             setInfestedCorn(data.infested_corn || 0);
             setPercentageInfested(data.percentage_infested || 0);
 
-            // Draw bounding boxes
+            // Clear the canvas and redraw the video frame
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Draw bounding boxes for detected objects
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 2;
+            ctx.font = '16px Arial';
+            ctx.fillStyle = 'red';
+
             data.detections.forEach((detection) => {
-              ctx.strokeRect(
-                detection.xmin,
-                detection.ymin,
-                detection.xmax - detection.xmin,
-                detection.ymax - detection.ymin
-              );
+              const [xmin, ymin, xmax, ymax, confidence, classId] = detection;
+
+              // Only draw boxes with confidence > 0.5
+              if (confidence > 0.5) {
+                ctx.strokeRect(
+                  xmin,
+                  ymin,
+                  xmax - xmin,
+                  ymax - ymin
+                );
+
+                // Add label with class name and confidence score
+                ctx.fillText(
+                  `Class: ${classId}, Conf: ${(confidence * 100).toFixed(1)}%`,
+                  xmin,
+                  ymin - 5
+                );
+              }
             });
           })
           .catch((error) => console.error('Error detecting frame:', error));
