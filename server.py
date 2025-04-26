@@ -5,59 +5,32 @@ import io
 
 app = Flask(__name__)
 
-model = YOLO('best.pt')  # Load YOLOv8 model
+# Load the YOLOv8 model
+model = YOLO('best.pt')  # Replace 'best.pt' with the path to your YOLOv8 model
 
-@app.route('/detect', methods=['GET', 'POST'])
+@app.route('/detect', methods=['POST'])
 def detect():
-    if request.method == 'POST':
-        if 'image' not in request.files:
-            return jsonify({'error': 'No image uploaded'}), 400
+    if 'frame' not in request.files:
+        return jsonify({'error': 'No frame provided'}), 400
 
-        image = request.files['image']
-        if image.filename == '':
-            return jsonify({'error': 'No image selected'}), 400
+    file = request.files['frame']
+    img = Image.open(io.BytesIO(file.read()))
 
-        try:
-            image_data = image.read()
-            img = Image.open(io.BytesIO(image_data))
+    # Perform detection
+    results = model.predict(source=img, save=False, conf=0.25)  # Adjust confidence threshold as needed
+    detections = results[0].boxes.data.tolist()  # Extract detection results
 
-            results = model(img)
+    # Example: Calculate summary statistics
+    total_corn = len(detections)
+    infested_corn = sum(1 for d in detections if int(d[5]) == 1)  # Replace '1' with the class ID for 'infested'
+    percentage_infested = (infested_corn / total_corn) * 100 if total_corn > 0 else 0
 
-            detections = []
-            total_corn = 0
-            infested_corn = 0
-
-            for result in results:
-                boxes = result.boxes
-                for box in boxes:
-                    x1, y1, x2, y2 = box.xyxy[0].tolist()
-                    confidence = box.conf[0].item()
-                    class_id = box.cls[0].item()
-                    label = result.names[class_id]
-
-                    if label == 'corn' or label == 'infested_corn':
-                        total_corn += 1
-                        if label == 'infested_corn':
-                            infested_corn += 1
-                        detections.append({
-                            'box': [int(x1), int(y1), int(x2), int(y2)],
-                            'label': label,
-                            'confidence': float(confidence)
-                        })
-
-            percentage_infested = (infested_corn / total_corn) * 100 if total_corn > 0 else 0
-
-            return jsonify({
-                'detections': detections,
-                'total_corn': total_corn,
-                'infested_corn': total_corn,
-                'percentage_infested': percentage_infested
-            })
-
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
-    else:
-        return jsonify({'message': 'Server is working!'})
+    return jsonify({
+        'total_corn': total_corn,
+        'infested_corn': infested_corn,
+        'percentage_infested': percentage_infested,
+        'detections': detections,
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
