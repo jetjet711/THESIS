@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
 
@@ -7,43 +7,40 @@ function Home({ canvasRef }) {
   const [totalCorn, setTotalCorn] = useState(0);
   const [infestedCorn, setInfestedCorn] = useState(0);
   const [percentageInfested, setPercentageInfested] = useState(0);
+  const [serverStatus, setServerStatus] = useState('Checking...'); // <-- NEW
 
   useEffect(() => {
-    const fetchData = async () => {
+    const checkServer = async () => {
       try {
-        // Fetch the latest detection data from the backend (assuming it's stored in the database)
-        const response = await fetch('http://localhost:5000/detect', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({}) // Send an empty JSON object as the body
-        });
-        const data = await response.json();
-
-        // Update the state with the new data
-        setTotalCorn(data.total_corn);
-        setInfestedCorn(data.infested_corn);
-        setPercentageInfested(data.percentage_infested);
+        const response = await fetch('http://localhost:5000/detect');
+        if (response.ok) {
+          setServerStatus('Connected ✅');
+        } else {
+          setServerStatus('Disconnected ❌');
+        }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        setServerStatus('Disconnected ❌');
+        console.error('Error connecting to server:', error);
       }
     };
 
-    fetchData(); // Fetch data on component mount
+    checkServer();
 
-    // Optionally, you can set up an interval to fetch data periodically
-    // For example, every 5 seconds:
-    // const intervalId = setInterval(fetchData, 5000);
-
-    // Clean up the interval when the component unmounts
-    // return () => clearInterval(intervalId);
+    // Optionally, check server every 5 seconds
+    const interval = setInterval(checkServer, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
     <div className="layout-container">
       <div className="detection-section">
         <h3>DETECTION SUMMARY</h3>
+        
+        {/* 👇 Add this */}
+        <h2 style={{ color: serverStatus === 'Connected ✅' ? 'green' : 'red' }}>
+          Server Status: {serverStatus}
+        </h2>
+
         <div className="detection-cards">
           <div className="card total">
             <h4>Total Corn Plants Detected</h4>
