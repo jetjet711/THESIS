@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
+import DroneFeed from '../components/DroneFeed';
 
+function Home() {
 function Home() {
   const navigate = useNavigate();
   const [totalCorn, setTotalCorn] = useState(0);
