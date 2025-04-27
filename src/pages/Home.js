@@ -144,7 +144,7 @@ function Home() {
           <h3>DRONE LIVE FEED</h3>
           <iframe
             ref={iframeRef}
-            title="Drone Live Feed"
+            title="Drone Live Feeds"
             src="https://vdo.ninja/?view=9xQM4Q3&autoplay=1&muted=1"
             allow="camera; microphone; autoplay; fullscreen"
             width="100%"
