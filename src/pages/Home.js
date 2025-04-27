@@ -57,7 +57,7 @@ function Home() {
 
           // Send frame to server
           canvas.toBlob(async (blob) => {
-            if (blob) {
+            if (blob && blob.size > 0) {
               try {
                 const response = await fetch('http://localhost:5000/detect', {
                   method: 'POST',
@@ -72,8 +72,12 @@ function Home() {
               } catch (err) {
                 console.error('Error sending frame to server:', err);
               }
+            } else {
+              console.error('Empty blob, not sending to server');
             }
           }, 'image/jpeg');
+        } else {
+          console.error('Video dimensions are invalid, not drawing to canvas');
         }
       } catch (e) {
         console.error('Cannot access video inside iframe:', e);
@@ -145,7 +149,7 @@ function Home() {
           <iframe
             ref={iframeRef}
             title="Drone Live Feeds"
-            src="https://vdo.ninja/?view=9xQM4Q3&autoplay=1&muted=1"
+            src="http://localhost:3001/videoproxy/?view=JS5mGZp&autoplay=1&muted=1"
             allow="camera; microphone; autoplay; fullscreen"
             width="100%"
             height="100%"
