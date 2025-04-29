@@ -13,7 +13,7 @@ function Team() {
       name: "Claire Belle Candia",
       role: "Frontend Developer",
       description: "Focuses on creating user-friendly interfaces and experiences.",
-      image: "images/profile.jpg"
+      image: "images/kler.png"
     },
     {
       name: "Anthony Nemenzo",
@@ -25,7 +25,7 @@ function Team() {
       name: "Joren Varquez",
       role: "Project Manager",
       description: "Ensures timely delivery and smooth collaboration across the team.",
-      image: "images/joren1.jpg"
+      image: "images/joren2.png"
     }
   ];
 

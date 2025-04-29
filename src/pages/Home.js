@@ -133,7 +133,7 @@ function Home() {
       }, 'image/jpeg');
     };
 
-    const intervalId = setInterval(captureAndDetect, 1000);
+    const intervalId = setInterval(captureAndDetect, 5000);
     return () => clearInterval(intervalId);
   }, []);
 

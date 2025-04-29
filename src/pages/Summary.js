@@ -13,7 +13,7 @@ function Summary() {
   const healthyCorn = totalCorn - infestedCorn;
 
   const data = {
-    labels: ['Infested Corn', 'Healthy Corn'],
+    labels: ['Infested Corn', 'Not Infested Corn'],
     datasets: [
       {
         data: [infestedCorn, healthyCorn],
