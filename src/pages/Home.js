@@ -9,8 +9,10 @@ function Home() {
   const [percentageInfested, setPercentageInfested] = useState(0);
   const [serverStatus, setServerStatus] = useState('Checking...');
   const canvasRef = useRef(null);
-  const videoCaptureRef = useRef(null);   // ✅ Hidden video
+  const videoCaptureRef = useRef(null);
   const iframeRef = useRef(null);
+  const boxesRef = useRef([]);   // ✅ Store boxes separately
+  const classesRef = useRef([]); // ✅ Store classes separately
 
   useEffect(() => {
     const checkServer = async () => {
@@ -37,12 +39,11 @@ function Home() {
   }, []);
 
   useEffect(() => {
-    // Ask user permission to capture iframe screen
     const captureIframeScreen = async () => {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { frameRate: 30 }, 
-          audio: false
+          video: { frameRate: 30 },
+          audio: false,
         });
 
         const video = videoCaptureRef.current;
@@ -56,19 +57,46 @@ function Home() {
     captureIframeScreen();
   }, []);
 
+  // ✅ This draws the video continuously at 30fps
   useEffect(() => {
-    const captureAndDetect = () => {
+    const drawVideo = () => {
       const video = videoCaptureRef.current;
       const canvas = canvasRef.current;
-      const context = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d');
 
-      if (!video || video.readyState < 2) return;
+      if (!video || video.readyState < 2) {
+        requestAnimationFrame(drawVideo);
+        return;
+      }
 
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      canvas.toBlob(async (blob) => {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // ✅ Draw bounding boxes after drawing video
+      drawBoxes(ctx);
+
+      requestAnimationFrame(drawVideo);
+    };
+
+    requestAnimationFrame(drawVideo);
+  }, []);
+
+  // ✅ Separate capturing and sending to server
+  useEffect(() => {
+    const captureAndDetect = () => {
+      const video = videoCaptureRef.current;
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+
+      if (!video || video.readyState < 2) return;
+
+      tempCanvas.width = video.videoWidth;
+      tempCanvas.height = video.videoHeight;
+      tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+      tempCanvas.toBlob(async (blob) => {
         if (blob && blob.size > 0) {
           try {
             const response = await fetch('http://localhost:5000/detect', {
@@ -79,7 +107,8 @@ function Home() {
               body: blob,
             });
             const result = await response.json();
-            drawBoxes(result.boxes, result.classes);
+            boxesRef.current = result.boxes;   // ✅ Update boxes
+            classesRef.current = result.classes; // ✅ Update classes
             updateCounts(result);
           } catch (err) {
             console.error('Error sending frame to server:', err);
@@ -88,30 +117,29 @@ function Home() {
       }, 'image/jpeg');
     };
 
-    const intervalId = setInterval(captureAndDetect, 1000);
+    const intervalId = setInterval(captureAndDetect, 1000); // Send every 1 sec
     return () => clearInterval(intervalId);
   }, []);
 
-  const drawBoxes = (boxes, classes) => {
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
+  const drawBoxes = (ctx) => {
+    const boxes = boxesRef.current;
+    const classes = classesRef.current;
 
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.lineWidth = 2;
-    context.font = '18px Arial';
+    ctx.lineWidth = 2;
+    ctx.font = '18px Arial';
 
     boxes.forEach((box, idx) => {
       const [x_center, y_center, width, height] = box;
-      const x = (x_center - width / 2) * canvas.width;
-      const y = (y_center - height / 2) * canvas.height;
-      const w = width * canvas.width;
-      const h = height * canvas.height;
+      const x = (x_center - width / 2) * ctx.canvas.width;
+      const y = (y_center - height / 2) * ctx.canvas.height;
+      const w = width * ctx.canvas.width;
+      const h = height * ctx.canvas.height;
 
-      context.strokeStyle = classes[idx] === 0 ? 'red' : 'green';
-      context.fillStyle = classes[idx] === 0 ? 'red' : 'green';
+      ctx.strokeStyle = classes[idx] === 0 ? 'red' : 'green';
+      ctx.fillStyle = classes[idx] === 0 ? 'red' : 'green';
 
-      context.strokeRect(x, y, w, h);
-      context.fillText(classes[idx] === 0 ? 'Infested' : 'Healthy', x, y > 20 ? y - 5 : y + 20);
+      ctx.strokeRect(x, y, w, h);
+      ctx.fillText(classes[idx] === 0 ? 'Infested' : 'Healthy', x, y > 20 ? y - 5 : y + 20);
     });
   };
 
@@ -164,7 +192,6 @@ function Home() {
             style={{ zIndex: 1 }}
           ></iframe>
 
-          {/* Hidden video capture */}
           <video
             ref={videoCaptureRef}
             style={{ display: 'none' }}
@@ -172,7 +199,6 @@ function Home() {
             muted
           />
 
-          {/* Canvas on top */}
           <canvas
             ref={canvasRef}
             style={{
@@ -199,4 +225,3 @@ function Home() {
 }
 
 export default Home;
-
