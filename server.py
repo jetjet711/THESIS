@@ -155,6 +155,7 @@ def get_percentages():
     infested_percentage = (detection_counts["infested"] / total) * 100 if total > 0 else 0
     not_infested_percentage = (detection_counts["not_infested"] / total) * 100 if total > 0 else 0
 
+    print(f"Returning percentages - Infested: {detection_counts['infested']}, Not Infested: {detection_counts['not_infested']}")
     return jsonify({
         "infested_percentage": infested_percentage,
         "not_infested_percentage": not_infested_percentage

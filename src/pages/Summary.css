@@ -108,20 +108,3 @@
 .delete-button:hover {
   background-color: #b71c1c;
 }
-.live-summary {
-  margin-bottom: 2rem;
-}
-
-.detection-cards {
-  display: flex;
-  gap: 1rem;
-}
-
-.card {
-  background: #f1f1f1;
-  padding: 1rem;
-  border-radius: 10px;
-  flex: 1;
-  text-align: center;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-}
