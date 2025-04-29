@@ -5,23 +5,26 @@ import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './Summary.css';
 
-
 ChartJS.register(ArcElement, Tooltip, ChartDataLabels);
 
 function SummaryAndPercentages() {
+  const [loading, setLoading] = useState(true);
   const [summaries, setSummaries] = useState([]);
   const [percentages, setPercentages] = useState({ infested: 0, notInfested: 0 });
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Destructure passed values from Home.js (if any)
   const { totalCorn, infestedCorn, percentageInfested } = location.state || {};
 
   useEffect(() => {
-    fetch('http://192.168.254.113:5000/get_summaries')
-      .then((response) => response.json())
-      .then((data) => {
-        const formattedSummaries = data
+    // Fetch both summaries and percentages at the same time
+    Promise.all([
+      fetch('http://192.168.254.113:5000/get_summaries').then((res) => res.json()),
+      fetch('http://192.168.254.113:5000/get_percentages').then((res) => res.json())
+    ])
+      .then(([summariesData, percentagesData]) => {
+        // Handle summaries
+        const formattedSummaries = summariesData
           .map((item) => {
             const total = item[2] + item[3];
             const infestedPercentage = total > 0 ? ((item[2] / total) * 100).toFixed(2) : 0;
@@ -37,20 +40,19 @@ function SummaryAndPercentages() {
           })
           .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         setSummaries(formattedSummaries);
-      })
-      .catch((error) => console.error('Error fetching summaries:', error));
-  }, []);
 
-  useEffect(() => {
-    fetch('http://192.168.254.113:5000/get_percentages')
-      .then((response) => response.json())
-      .then((data) => {
+        // Handle percentages
         setPercentages({
-          infested: parseFloat(data.infested_percentage.toFixed(4)) || 0,
-          notInfested: parseFloat(data.not_infested_percentage.toFixed(4)) || 0,
+          infested: isNaN(percentagesData.infested_percentage) ? 0 : parseFloat(percentagesData.infested_percentage.toFixed(2)),
+          notInfested: isNaN(percentagesData.not_infested_percentage) ? 0 : parseFloat(percentagesData.not_infested_percentage.toFixed(2)),
         });
+
+        setLoading(false); // ✅ Now set loading false after both are done
       })
-      .catch((error) => console.error('Error fetching percentages:', error));
+      .catch((error) => {
+        console.error('Error fetching data:', error);
+        setLoading(false); // Even on error, stop loading
+      });
   }, []);
 
   const handleDelete = (id) => {
@@ -59,7 +61,7 @@ function SummaryAndPercentages() {
         method: 'DELETE',
       })
         .then((response) => response.json())
-        .then((data) => {
+        .then(() => {
           setSummaries((prevSummaries) => prevSummaries.filter((summary) => summary.id !== id));
         })
         .catch((error) => console.error('Error deleting summary:', error));
@@ -80,9 +82,7 @@ function SummaryAndPercentages() {
 
   const options = {
     plugins: {
-      legend: {
-        display: false,
-      },
+      legend: { display: false },
       tooltip: {
         callbacks: {
           label: (tooltipItem) => `${tooltipItem.label}: ${tooltipItem.raw}%`,
@@ -90,10 +90,7 @@ function SummaryAndPercentages() {
       },
       datalabels: {
         color: '#000',
-        font: {
-          size: 14,
-          weight: 'bold',
-        },
+        font: { size: 14, weight: 'bold' },
         formatter: (value, context) => {
           const label = context.chart.data.labels[context.dataIndex];
           return `${label}: ${value}%`;
@@ -105,8 +102,7 @@ function SummaryAndPercentages() {
   return (
     <div>
       <div className="summary-and-percentages-container">
-
-        {/* ✅ Live Summary Section from Home.js */}
+        {/* ✅ Live Summary Section */}
         {totalCorn !== undefined && (
           <div className="live-summary">
             <h2>Live Detection Summary</h2>
@@ -121,23 +117,31 @@ function SummaryAndPercentages() {
               </div>
               <div className="card percentage">
                 <h4>Percentage Infested</h4>
-                <p>{percentageInfested.toFixed(2)}%</p>
+                <p>{percentageInfested !== undefined ? percentageInfested.toFixed(2) : '0.00'}%</p>
               </div>
             </div>
           </div>
         )}
 
+        {/* ✅ Chart Section */}
         <div className="chart-section">
           <h2>PERCENTAGE</h2>
           <div className="chart-wrapper">
-            {percentages.infested + percentages.notInfested > 0 ? (
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'gray' }}>
+                Loading chart...
+              </div>
+            ) : percentages.infested + percentages.notInfested > 0 ? (
               <Pie data={data} options={options} />
             ) : (
-              <p>No data available to display the chart.</p>
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'gray' }}>
+                No data available to display the chart.
+              </div>
             )}
           </div>
         </div>
 
+        {/* ✅ Summaries Table */}
         <div className="summary-section">
           <h2>SUMMARY</h2>
           <table className="summary-table">
@@ -152,7 +156,11 @@ function SummaryAndPercentages() {
               </tr>
             </thead>
             <tbody>
-              {summaries.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="6">Loading summaries...</td>
+                </tr>
+              ) : summaries.length > 0 ? (
                 summaries.map((summary) => (
                   <tr key={summary.id}>
                     <td>{summary.timestamp}</td>
@@ -180,6 +188,7 @@ function SummaryAndPercentages() {
         </div>
       </div>
 
+      {/* ✅ Back Button */}
       <button onClick={() => navigate('/')} className="back-button">
         Back to Home
       </button>

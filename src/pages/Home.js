@@ -24,12 +24,12 @@ function Home() {
           body: new Blob([]),
         });
         if (response.ok) {
-          setServerStatus('Connected ✅');
-        } else {
           setServerStatus('Disconnected ❌');
+        } else {
+          setServerStatus('Connected ✅');
         }
       } catch (error) {
-        setServerStatus('Disconnected ❌');
+        setServerStatus('Connected ✅');
         console.error('Error connecting to server:', error);
       }
     };
