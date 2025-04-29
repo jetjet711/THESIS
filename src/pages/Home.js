@@ -8,12 +8,23 @@ function Home() {
   const [totalCorn, setTotalCorn] = useState(0);
   const [infestedCorn, setInfestedCorn] = useState(0);
   const [percentageInfested, setPercentageInfested] = useState(0);
-  const [serverStatus, setServerStatus] = useState('Checking...');
+  const [isScreenCaptured, setIsScreenCaptured] = useState(false);
+  const [isServerReachable, setIsServerReachable] = useState(false);
   const canvasRef = useRef(null);
   const videoCaptureRef = useRef(null);
   const iframeRef = useRef(null);
-  const boxesRef = useRef([]);   
-  const classesRef = useRef([]); 
+  const boxesRef = useRef([]);
+  const classesRef = useRef([]);
+
+  const statusText = isServerReachable && isScreenCaptured
+    ? 'Connected ✅'
+    : 'Disconnected ❌';
+
+  useEffect(() => {
+    console.log('isScreenCaptured:', isScreenCaptured);
+    console.log('isServerReachable:', isServerReachable);
+    console.log('statusText:', statusText);
+  }, [isScreenCaptured, isServerReachable, statusText]);
 
   useEffect(() => {
     const checkServer = async () => {
@@ -23,21 +34,26 @@ function Home() {
           headers: { 'Content-Type': 'application/octet-stream' },
           body: new Blob([]),
         });
+
         if (response.ok) {
-          setServerStatus('Disconnected ❌');
+          setIsServerReachable(true);
+          console.log('Server is reachable');
         } else {
-          setServerStatus('Connected ✅');
+          setIsServerReachable(false);
+          console.log('Server is not reachable');
         }
       } catch (error) {
-        setServerStatus('Connected ✅');
         console.error('Error connecting to server:', error);
+        setIsServerReachable(false);
       }
     };
 
     checkServer();
-    const interval = setInterval(checkServer, 5000);
+    const interval = setInterval(checkServer, 3000);
     return () => clearInterval(interval);
   }, []);
+
+  // ... existing imports and code remain unchanged
 
   useEffect(() => {
     const captureIframeScreen = async () => {
@@ -49,39 +65,55 @@ function Home() {
 
         const video = videoCaptureRef.current;
         video.srcObject = stream;
-        video.play();
+        await video.play();
+
+        setIsScreenCaptured(true);
+        console.log('Screen captured successfully');
       } catch (err) {
         console.error('Error capturing iframe screen:', err);
+        setIsScreenCaptured(false);
       }
     };
 
     captureIframeScreen();
+
+    // 🛑 CLEANUP: Stop the screen capture stream
+    return () => {
+      const video = videoCaptureRef.current;
+      const stream = video?.srcObject;
+      if (stream) {
+        const tracks = stream.getTracks();
+        tracks.forEach((track) => track.stop());
+      }
+    };
   }, []);
 
   useEffect(() => {
     let animationFrameId;
+    let isMounted = true; // ✅ add flag to track if component is still mounted
   
     const drawVideo = () => {
+      if (!isMounted) return; // ✅ skip if component is unmounted
+  
       const video = videoCaptureRef.current;
       const canvas = canvasRef.current;
   
       if (!video || !canvas) {
-        return; // stop drawing if canvas or video is gone
+        animationFrameId = requestAnimationFrame(drawVideo);
+        return;
       }
   
       const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        return; // ctx can also be null if canvas is gone
+      if (!ctx || video.readyState < 2) {
+        animationFrameId = requestAnimationFrame(drawVideo);
+        return;
       }
   
-      if (video.readyState >= 2) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
   
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-        drawBoxes(ctx);
-      }
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      drawBoxes(ctx);
   
       animationFrameId = requestAnimationFrame(drawVideo);
     };
@@ -89,11 +121,43 @@ function Home() {
     animationFrameId = requestAnimationFrame(drawVideo);
   
     return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
+      isMounted = false; // ✅ flag unmounted
+      cancelAnimationFrame(animationFrameId); // ✅ cleanup loop
     };
   }, []);
+  
+
+
+  useEffect(() => {
+    const drawVideo = () => {
+      const video = videoCaptureRef.current;
+      const canvas = canvasRef.current;
+  
+      if (!video || !canvas || video.readyState < 2) {
+        requestAnimationFrame(drawVideo);
+        return;
+      }
+  
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        requestAnimationFrame(drawVideo);
+        return;
+      }
+  
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+  
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+      // Draw bounding boxes
+      drawBoxes(ctx);
+  
+      requestAnimationFrame(drawVideo);
+    };
+  
+    requestAnimationFrame(drawVideo);
+  }, []);
+  
   
 
   useEffect(() => {
@@ -119,21 +183,22 @@ function Home() {
               body: blob,
             });
             const result = await response.json();
-            boxesRef.current = result.boxes;
-            classesRef.current = result.classes;
+            boxesRef.current = result.boxes || [];
+            classesRef.current = result.classes || [];
             updateCounts(result);
 
-            // 🔥🔥 ADD THIS: Save to backend
-            await saveSummary(result.infested_count, result.not_infested_count);
-
+            // Set server reachable because the request succeeded
+            setIsServerReachable(true);
           } catch (err) {
             console.error('Error sending frame to server:', err);
+            setIsServerReachable(false);
           }
         }
       }, 'image/jpeg');
     };
 
-    const intervalId = setInterval(captureAndDetect, 5000);
+    // Set interval to 3 seconds (3000 ms)
+    const intervalId = setInterval(captureAndDetect, 3000);
     return () => clearInterval(intervalId);
   }, []);
 
@@ -195,9 +260,6 @@ function Home() {
         {/* Detection Summary */}
         <div className="detection-section">
           <h3>DETECTION SUMMARY</h3>
-          <h2 style={{ color: serverStatus === 'Connected ✅' ? 'green' : 'red' }}>
-            Server Status: {serverStatus}
-          </h2>
 
           <div className="detection-cards">
             <div className="card total">
@@ -208,6 +270,10 @@ function Home() {
               <h4>Infested Corn Plants</h4>
               <p>{infestedCorn}</p>
             </div>
+            <div className="card not-infested">
+              <h4>Not Infested Corn Plants</h4>
+              <p>{totalCorn - infestedCorn}</p>
+            </div>
             <div className="card percentage">
               <h4>Percentage Infested</h4>
               <p>{percentageInfested ? percentageInfested.toFixed(2) : '0.00'}%</p>
@@ -215,57 +281,60 @@ function Home() {
           </div>
         </div>
 
-        {/* Drone Live Feed */}
-        <div className="iframe-container" style={{ position: 'relative', width: '100%', height: '700px' }}>
+        {/* Drone Live Feed Section */}
+        <div className="drone-feed-section">
           <h3>DRONE LIVE FEED</h3>
 
-          <iframe
-            ref={iframeRef}
-            title="Drone Live Feeds"
-            src="http://localhost:3001/videoproxy/?view=hemN544&autoplay=1&muted=1"
-            allow="camera; microphone; autoplay; fullscreen"
-            width="100%"
-            height="100%"
-            frameBorder="0"
-            allowFullScreen
-            style={{ zIndex: 1 }}
-          ></iframe>
+          <div className="iframe-container" style={{ position: 'relative', width: '1000px', height: '600px' }}>
+            <iframe
+              ref={iframeRef}
+              title="Drone Live Feeds"
+              src="https://vdo.ninja/?view=VZeA6ZX&autoplay=1&muted=1"
+              allow="camera; microphone; autoplay; fullscreen"
+              width="100%"
+              height="100%"
+              frameBorder="0"
+              allowFullScreen
+              style={{ position: 'relative', zIndex: 1 }}
+            />
 
-          <video
-            ref={videoCaptureRef}
-            style={{ display: 'none' }}
-            playsInline
-            muted
-          />
+            <video
+              ref={videoCaptureRef}
+              style={{ display: 'none' }}
+            />
 
-          <canvas
-            ref={canvasRef}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: 'none',
-              zIndex: 2,
-            }}
-          />
+            <canvas
+              ref={canvasRef}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                zIndex: 2,
+              }}
+            />
+          </div>
         </div>
       </div>
 
       {/* Options */}
-      <button
-        onClick={() => navigate('/summary', {
-          state: {
-            totalCorn,
-            infestedCorn,
-            percentageInfested,
-          }
-        })}
-        className="view-summary-button"
-      >
-        View Summary
-      </button>
+      <div className="options">
+        <button 
+          onClick={() => navigate('/summary', {
+            state: {
+              totalCorn,
+              infestedCorn,
+              notInfestedCorn: totalCorn - infestedCorn, // Added not-infested corn
+              percentageInfested,
+            }
+          })}
+          className="view-summary-button"
+        >
+          View Summary
+        </button>
+      </div>
     </>
   );
 }
