@@ -19,6 +19,26 @@
   justify-content: center;
 }
 
+.back-to-home-button {
+  padding: 12px 24px;
+  background-color: #0d8b76;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 20px;
+  transition: background-color 0.3s ease;
+  margin-bottom: 20px;
+}
+
+.summary-container h3, .cart-container h3 {
+  font-size: 30px;
+  font-weight: black;
+  color: #004d40;
+  margin-bottom: 20px;
+  margin-top: 50px;
+}
+
 .chart-wrapper {
   width: 400px;
   height: 400px;
