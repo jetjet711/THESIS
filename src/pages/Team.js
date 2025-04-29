@@ -25,7 +25,7 @@ function Team() {
       name: "Joren Varquez",
       role: "Project Manager",
       description: "Ensures timely delivery and smooth collaboration across the team.",
-      image: "images/profile.jpg"
+      image: "images/joren1.jpg"
     }
   ];
 

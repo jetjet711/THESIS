@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
+import './Summary.css';
 
 function Home() {
   const navigate = useNavigate();
@@ -11,8 +12,8 @@ function Home() {
   const canvasRef = useRef(null);
   const videoCaptureRef = useRef(null);
   const iframeRef = useRef(null);
-  const boxesRef = useRef([]);   // ✅ Store boxes separately
-  const classesRef = useRef([]); // ✅ Store classes separately
+  const boxesRef = useRef([]);   
+  const classesRef = useRef([]); 
 
   useEffect(() => {
     const checkServer = async () => {
@@ -57,33 +58,44 @@ function Home() {
     captureIframeScreen();
   }, []);
 
-  // ✅ This draws the video continuously at 30fps
   useEffect(() => {
+    let animationFrameId;
+  
     const drawVideo = () => {
       const video = videoCaptureRef.current;
       const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-
-      if (!video || video.readyState < 2) {
-        requestAnimationFrame(drawVideo);
-        return;
+  
+      if (!video || !canvas) {
+        return; // stop drawing if canvas or video is gone
       }
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // ✅ Draw bounding boxes after drawing video
-      drawBoxes(ctx);
-
-      requestAnimationFrame(drawVideo);
+  
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        return; // ctx can also be null if canvas is gone
+      }
+  
+      if (video.readyState >= 2) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+  
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+        drawBoxes(ctx);
+      }
+  
+      animationFrameId = requestAnimationFrame(drawVideo);
     };
-
-    requestAnimationFrame(drawVideo);
+  
+    animationFrameId = requestAnimationFrame(drawVideo);
+  
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, []);
+  
 
-  // ✅ Separate capturing and sending to server
   useEffect(() => {
     const captureAndDetect = () => {
       const video = videoCaptureRef.current;
@@ -107,9 +119,13 @@ function Home() {
               body: blob,
             });
             const result = await response.json();
-            boxesRef.current = result.boxes;   // ✅ Update boxes
-            classesRef.current = result.classes; // ✅ Update classes
+            boxesRef.current = result.boxes;
+            classesRef.current = result.classes;
             updateCounts(result);
+
+            // 🔥🔥 ADD THIS: Save to backend
+            await saveSummary(result.infested_count, result.not_infested_count);
+
           } catch (err) {
             console.error('Error sending frame to server:', err);
           }
@@ -117,7 +133,7 @@ function Home() {
       }, 'image/jpeg');
     };
 
-    const intervalId = setInterval(captureAndDetect, 1000); // Send every 1 sec
+    const intervalId = setInterval(captureAndDetect, 1000);
     return () => clearInterval(intervalId);
   }, []);
 
@@ -148,6 +164,29 @@ function Home() {
     setTotalCorn(total);
     setInfestedCorn(result.infested_count);
     setPercentageInfested(total > 0 ? (result.infested_count / total) * 100 : 0);
+  };
+
+  // 🔥🔥 ADD THIS: Function to save summary to backend
+  const saveSummary = async (infestedCount, notInfestedCount) => {
+    if (infestedCount + notInfestedCount === 0) return; // don't save empty detections
+
+    try {
+      const response = await fetch('http://localhost:5000/save_summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          infested_count: infestedCount,
+          not_infested_count: notInfestedCount,
+        }),
+      });
+
+      const data = await response.json();
+      console.log('Summary saved:', data.message);
+    } catch (err) {
+      console.error('Error saving summary:', err);
+    }
   };
 
   return (
@@ -215,11 +254,18 @@ function Home() {
       </div>
 
       {/* Options */}
-      <div className="options">
-        <button onClick={() => navigate('/summary')} className="view-summary-button">
-          View Summary
-        </button>
-      </div>
+      <button
+        onClick={() => navigate('/summary', {
+          state: {
+            totalCorn,
+            infestedCorn,
+            percentageInfested,
+          }
+        })}
+        className="view-summary-button"
+      >
+        View Summary
+      </button>
     </>
   );
 }

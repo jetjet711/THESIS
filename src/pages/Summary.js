@@ -2,28 +2,30 @@ import React, { useEffect, useState } from 'react';
 import { Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import './Summary.css';
 
-// Register Chart.js components and the plugin
+
 ChartJS.register(ArcElement, Tooltip, ChartDataLabels);
 
 function SummaryAndPercentages() {
   const [summaries, setSummaries] = useState([]);
   const [percentages, setPercentages] = useState({ infested: 0, notInfested: 0 });
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Destructure passed values from Home.js (if any)
+  const { totalCorn, infestedCorn, percentageInfested } = location.state || {};
 
   useEffect(() => {
-    // Fetch summaries from the backend
     fetch('http://192.168.254.113:5000/get_summaries')
       .then((response) => response.json())
       .then((data) => {
-        console.log('Summaries (raw):', data); // Debugging
         const formattedSummaries = data
           .map((item) => {
-            const total = item[2] + item[3]; // Total count (infested + not infested)
-            const infestedPercentage = total > 0 ? ((item[2] / total) * 100).toFixed(2) : 0; // Calculate infested percentage
-            const notInfestedPercentage = total > 0 ? ((item[3] / total) * 100).toFixed(2) : 0; // Calculate not infested percentage
+            const total = item[2] + item[3];
+            const infestedPercentage = total > 0 ? ((item[2] / total) * 100).toFixed(2) : 0;
+            const notInfestedPercentage = total > 0 ? ((item[3] / total) * 100).toFixed(2) : 0;
             return {
               id: item[0],
               timestamp: item[1],
@@ -33,19 +35,16 @@ function SummaryAndPercentages() {
               not_infested_percentage: notInfestedPercentage,
             };
           })
-          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)); // Sort by timestamp (latest first)
-        console.log('Summaries (formatted and sorted):', formattedSummaries); // Debugging
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         setSummaries(formattedSummaries);
       })
       .catch((error) => console.error('Error fetching summaries:', error));
   }, []);
 
   useEffect(() => {
-    // Fetch percentages from the backend
     fetch('http://192.168.254.113:5000/get_percentages')
       .then((response) => response.json())
       .then((data) => {
-        console.log('Percentages:', data); // Debugging
         setPercentages({
           infested: parseFloat(data.infested_percentage.toFixed(4)) || 0,
           notInfested: parseFloat(data.not_infested_percentage.toFixed(4)) || 0,
@@ -61,15 +60,12 @@ function SummaryAndPercentages() {
       })
         .then((response) => response.json())
         .then((data) => {
-          console.log(data.message); // Debugging
-          // Remove the deleted summary from the state
           setSummaries((prevSummaries) => prevSummaries.filter((summary) => summary.id !== id));
         })
         .catch((error) => console.error('Error deleting summary:', error));
     }
   };
 
-  // Data for the pie chart
   const data = {
     labels: ['Infested', 'Not Infested'],
     datasets: [
@@ -82,11 +78,10 @@ function SummaryAndPercentages() {
     ],
   };
 
-  // Chart options to display labels on the chart
   const options = {
     plugins: {
       legend: {
-        display: false, // Disable the legend
+        display: false,
       },
       tooltip: {
         callbacks: {
@@ -94,14 +89,14 @@ function SummaryAndPercentages() {
         },
       },
       datalabels: {
-        color: '#000', // Label color
+        color: '#000',
         font: {
-          size: 14, // Font size
+          size: 14,
           weight: 'bold',
         },
         formatter: (value, context) => {
           const label = context.chart.data.labels[context.dataIndex];
-          return `${label}: ${value}%`; // Format the label
+          return `${label}: ${value}%`;
         },
       },
     },
@@ -110,6 +105,28 @@ function SummaryAndPercentages() {
   return (
     <div>
       <div className="summary-and-percentages-container">
+
+        {/* ✅ Live Summary Section from Home.js */}
+        {totalCorn !== undefined && (
+          <div className="live-summary">
+            <h2>Live Detection Summary</h2>
+            <div className="detection-cards">
+              <div className="card total">
+                <h4>Total Corn Plants Detected</h4>
+                <p>{totalCorn}</p>
+              </div>
+              <div className="card infested">
+                <h4>Infested Corn Plants</h4>
+                <p>{infestedCorn}</p>
+              </div>
+              <div className="card percentage">
+                <h4>Percentage Infested</h4>
+                <p>{percentageInfested.toFixed(2)}%</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="chart-section">
           <h2>PERCENTAGE</h2>
           <div className="chart-wrapper">
@@ -120,6 +137,7 @@ function SummaryAndPercentages() {
             )}
           </div>
         </div>
+
         <div className="summary-section">
           <h2>SUMMARY</h2>
           <table className="summary-table">
@@ -161,6 +179,7 @@ function SummaryAndPercentages() {
           </table>
         </div>
       </div>
+
       <button onClick={() => navigate('/')} className="back-button">
         Back to Home
       </button>
